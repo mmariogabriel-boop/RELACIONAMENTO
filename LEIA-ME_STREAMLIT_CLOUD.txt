@@ -1,0 +1,23 @@
+DASHBOARD RELACIONAMENTO EMPRESARIAL | MEDIATORIE
+
+ARQUIVOS OBRIGATORIOS NO MESMO REPOSITORIO/PASTA:
+- relacionamento_empresarial.py
+- logo_mediatorie.png
+- requirements.txt
+
+STREAMLIT CLOUD
+O Streamlit Cloud instala automaticamente as bibliotecas listadas em requirements.txt.
+Nao renomeie esse arquivo para requirements_relacionamento.txt no deploy.
+
+Se o aplicativo ja estiver publicado:
+1. Adicione/substitua requirements.txt no GitHub.
+2. Faça commit/push.
+3. Aguarde o redeploy automatico.
+4. Se continuar mostrando ModuleNotFoundError, abra Manage app e faça Reboot app.
+
+EXECUCAO LOCAL
+python -m pip install -r requirements.txt
+python -m streamlit run relacionamento_empresarial.py
+
+A logo deve permanecer com o nome:
+logo_mediatorie.png
