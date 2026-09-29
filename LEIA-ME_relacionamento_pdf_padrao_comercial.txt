@@ -1,0 +1,33 @@
+PROJETO - DASHBOARD RELACIONAMENTO EMPRESARIAL | MEDIATORIE
+
+Arquivos:
+- relacionamento_empresarial.py -> aplicação Streamlit
+- logo_mediatorie.png -> logo fixa usada no dashboard e no PDF
+- requirements_relacionamento.txt -> dependências
+
+PDF GERENCIAL
+O botão "Gerar PDF" cria o arquivo:
+relatorio_gerencial_relacionamento_mediatorie.pdf
+
+O relatório foi ajustado para seguir o padrão visual do relatório gerencial Comercial:
+- A4 em orientação retrato;
+- cabeçalho MEDIATORIE | DASHBOARD RELACIONAMENTO;
+- rodapé com empresa e numeração de página;
+- capa com logo, título, subtítulo e resumo dos filtros;
+- resumo executivo com KPIs e produção por competência;
+- Saúde e Odonto: Realizado x Meta com KPIs, gráfico e tabela;
+- Saúde e Odonto por porte da carteira;
+- Grupo Econômico somente em tabela e sem "Não informado";
+- visitas da equipe em páginas gerenciais;
+- conferência da base;
+- página final com regras utilizadas.
+
+EXECUÇÃO
+1. Instale as dependências:
+   python -m pip install -r requirements_relacionamento.txt
+
+2. Execute:
+   python -m streamlit run relacionamento_empresarial.py
+
+IMPORTANTE
+Mantenha logo_mediatorie.png na mesma pasta de relacionamento_empresarial.py.
