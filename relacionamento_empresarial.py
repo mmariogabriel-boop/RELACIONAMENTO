@@ -87,17 +87,13 @@ DATA_CORTE = pd.Timestamp("2025-12-01")
 
 CANCELAMENTOS_VALIDOS = [
 
-    "SEM JUSTA CAUSA",
-
-    "JUSTA CAUSA",
-
     "A PEDIDO DO BENEFICIÁRIO (RN561)",
 
     "BENEFÍCIO DEMITIDO/APOSENTADO (RN279)",
 
-    "DESLIGAMENTO DA EMPRESA (RN279)",
+    "DESLIGAMENTO DA EMPRESA (RN 279)",
 
-    "INADIMPLENTE",
+    "TRANSFERÊNCIA DE CONTRATO/LOTAÇÃO",
 
 ]
 
@@ -119,7 +115,7 @@ COLUNAS = [
 
     "Id Acomodação",
 
-    "Qt. Vidas Empresa",
+    "Descrição Relacionamento Mediatorie",
 
     "Grupo Econômico",
 
@@ -541,6 +537,29 @@ def processar(nome, conteudo):
 
     ].copy()
 
+    # Regra homologada: a carteira/contador de vidas é definida pela
+    # coluna Descrição Relacionamento Mediatorie. Corrige a exceção
+    # informada antes de qualquer agrupamento ou filtro gerencial.
+    df["Descrição Relacionamento Mediatorie"] = (
+        df["Descrição Relacionamento Mediatorie"]
+        .astype("string")
+        .str.strip()
+    )
+    df.loc[
+        df["Descrição Relacionamento Mediatorie"].eq(
+            "ELISANGELA ARAUJO DOS SANTOS VASCONCELOS"
+        ),
+        "Descrição Relacionamento Mediatorie",
+    ] = "CARTEIRA + 100 VIDAS"
+
+    # Normaliza somente espaços nas descrições de cancelamento; a lista
+    # aceita continua sendo exatamente a regra definida acima + vazios.
+    df["Descrição Cancelamento"] = (
+        df["Descrição Cancelamento"]
+        .astype("string")
+        .str.strip()
+    )
+
     df["Data Início Beneficiário"] = pd.to_datetime(
 
         df["Data Início Beneficiário"],
@@ -639,7 +658,7 @@ def separar(base):
 
     saude = base[
 
-        ~base["Id Acomodação"].isin(["ODO", "SEM"])
+        base["Id Acomodação"].ne("ODO")
 
     ].copy()
 
@@ -651,21 +670,23 @@ def separar(base):
 
     return saude, odonto
 
-def agrupar_carteira(base):
+def agrupar_relacionamento(base):
 
+    # Cada linha válida representa uma vida. O agrupamento é feito pela
+    # Descrição Relacionamento Mediatorie, conforme a regra homologada.
     resultado = (
 
         base.groupby(
 
-            ["Competencia", "Qt. Vidas Empresa"],
+            ["Competencia", "Descrição Relacionamento Mediatorie"],
 
-            dropna=False,
+            dropna=True,
 
         )
 
-        .agg({"Descrição Beneficiário": "count"})
+        .size()
 
-        .reset_index()
+        .reset_index(name="Quantidade")
 
     )
 
@@ -681,7 +702,7 @@ def agrupar_carteira(base):
 
     return resultado.sort_values(
 
-        ["Competencia", "Qt. Vidas Empresa"]
+        ["Competencia", "Descrição Relacionamento Mediatorie"]
 
     ).reset_index(drop=True)
 
@@ -1164,15 +1185,15 @@ def grafico_geral(saude, odonto):
 
     return fig
 
-def grafico_carteira(agrupado, titulo):
+def grafico_relacionamento(agrupado, titulo):
 
     dados = agrupado.copy()
 
     dados["Competência"] = dados["Competencia"].dt.strftime("%m/%Y")
 
-    dados["Qt. Vidas Empresa"] = (
+    dados["Descrição Relacionamento Mediatorie"] = (
 
-        dados["Qt. Vidas Empresa"]
+        dados["Descrição Relacionamento Mediatorie"]
 
         .astype("string")
 
@@ -1186,13 +1207,13 @@ def grafico_carteira(agrupado, titulo):
 
         x="Competência",
 
-        y="Descrição Beneficiário",
+        y="Quantidade",
 
-        color="Qt. Vidas Empresa",
+        color="Descrição Relacionamento Mediatorie",
 
         barmode="stack",
 
-        text="Descrição Beneficiário",
+        text="Quantidade",
 
     )
 
@@ -1208,27 +1229,25 @@ def grafico_carteira(agrupado, titulo):
 
         font=dict(family="Arial", color=GRAFITE),
 
-        yaxis_title="Quantidade de beneficiários",
+        yaxis_title="Quantidade de vidas",
 
-        legend_title="Qt. Vidas Empresa",
+        legend_title="Descrição Relacionamento Mediatorie",
 
     )
 
     return fig
 
-def ranking_carteira(agrupado, titulo):
+def ranking_relacionamento(agrupado, titulo):
 
     ranking = (
 
-        agrupado.groupby("Qt. Vidas Empresa", dropna=False)
+        agrupado.groupby("Descrição Relacionamento Mediatorie", dropna=False)
 
-        ["Descrição Beneficiário"]
+        ["Quantidade"]
 
         .sum()
 
         .reset_index()
-
-        .rename(columns={"Descrição Beneficiário": "Quantidade"})
 
         .sort_values("Quantidade", ascending=False)
 
@@ -1238,9 +1257,9 @@ def ranking_carteira(agrupado, titulo):
 
     )
 
-    ranking["Qt. Vidas Empresa"] = (
+    ranking["Descrição Relacionamento Mediatorie"] = (
 
-        ranking["Qt. Vidas Empresa"]
+        ranking["Descrição Relacionamento Mediatorie"]
 
         .astype("string")
 
@@ -1254,7 +1273,7 @@ def ranking_carteira(agrupado, titulo):
 
         x="Quantidade",
 
-        y="Qt. Vidas Empresa",
+        y="Descrição Relacionamento Mediatorie",
 
         orientation="h",
 
@@ -1282,7 +1301,7 @@ def ranking_carteira(agrupado, titulo):
 
         font=dict(family="Arial", color=GRAFITE),
 
-        xaxis_title="Quantidade de beneficiários",
+        xaxis_title="Quantidade de vidas",
 
     )
 
@@ -1653,7 +1672,7 @@ def _grafico_geral_pdf(ax, saude, odonto):
     )
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=6.5)
-    ax.set_ylabel("Beneficiários", fontsize=7)
+    ax.set_ylabel("Vidas", fontsize=7)
     ax.legend(
         frameon=False,
         ncol=2,
@@ -1714,9 +1733,10 @@ def _grafico_stack_competencia_pdf(ax, agrupado, categoria, titulo, top_n=8):
 
     dados = agrupado.copy()
     dados[categoria] = dados[categoria].astype("string").fillna("Não informado")
+    coluna_valor = "Quantidade" if "Quantidade" in dados.columns else "Descrição Beneficiário"
 
     principais = (
-        dados.groupby(categoria, dropna=False)["Descrição Beneficiário"]
+        dados.groupby(categoria, dropna=False)[coluna_valor]
         .sum()
         .sort_values(ascending=False)
         .head(top_n)
@@ -1729,7 +1749,7 @@ def _grafico_stack_competencia_pdf(ax, agrupado, categoria, titulo, top_n=8):
     pivot = dados.pivot_table(
         index="Competencia",
         columns=categoria,
-        values="Descrição Beneficiário",
+        values=coluna_valor,
         aggfunc="sum",
         fill_value=0,
     ).sort_index()
@@ -1754,7 +1774,7 @@ def _grafico_stack_competencia_pdf(ax, agrupado, categoria, titulo, top_n=8):
         ha="right",
         fontsize=6.5,
     )
-    ax.set_ylabel("Beneficiários", fontsize=7)
+    ax.set_ylabel("Vidas", fontsize=7)
     ax.legend(
         frameon=False,
         fontsize=5.3,
@@ -1867,20 +1887,19 @@ def _preparar_tabela_meta(comparativo, coluna_meta):
     ]
 
 
-def _preparar_ranking_porte(agrupado):
+def _preparar_ranking_relacionamento(agrupado):
     if agrupado is None or agrupado.empty:
-        return pd.DataFrame(columns=["Qt. Vidas Empresa", "Quantidade"])
+        return pd.DataFrame(columns=["Descrição Relacionamento Mediatorie", "Quantidade"])
 
     tabela = (
-        agrupado.groupby("Qt. Vidas Empresa", dropna=False)["Descrição Beneficiário"]
+        agrupado.groupby("Descrição Relacionamento Mediatorie", dropna=False)["Quantidade"]
         .sum()
         .reset_index()
-        .rename(columns={"Descrição Beneficiário": "Quantidade"})
         .sort_values("Quantidade", ascending=False)
         .head(12)
     )
-    tabela["Qt. Vidas Empresa"] = (
-        tabela["Qt. Vidas Empresa"].astype("string").fillna("Não informado")
+    tabela["Descrição Relacionamento Mediatorie"] = (
+        tabela["Descrição Relacionamento Mediatorie"].astype("string").fillna("Não informado")
     )
     tabela["Quantidade"] = tabela["Quantidade"].map(_formatar_inteiro_br)
     return tabela
@@ -1970,7 +1989,7 @@ def gerar_pdf_dashboard(
     valido,
     nao_corretos,
     competencias,
-    qt_vidas,
+    relacionamentos,
     visitas_filtradas=None,
     logo_bytes=None,
     nome_base=None,
@@ -2026,7 +2045,7 @@ def gerar_pdf_dashboard(
             ("Base Total", nome_base or "Arquivo carregado no dashboard"),
             ("Relatórios de Visitas", visitas_txt),
             ("Competência", _resumo_filtro(competencias)),
-            ("Qt. Vidas Empresa", _resumo_filtro(qt_vidas)),
+            ("Descrição Relacionamento Mediatorie", _resumo_filtro(relacionamentos)),
         ]
         _tabela_chave_valor_pdf(
             fig,
@@ -2125,25 +2144,25 @@ def gerar_pdf_dashboard(
             pagina += 1
 
         # -------------------------------------------------
-        # PORTE DA CARTEIRA - SAÚDE E ODONTO
+        # RELACIONAMENTO MEDIATORIE - SAÚDE E ODONTO
         # -------------------------------------------------
         for nome_segmento, agrupado in [
             ("Saúde", saude_agru),
             ("Odonto", odonto_agru),
         ]:
             fig = _nova_pagina_pdf(pagina)
-            _titulo_pagina_pdf(fig, f"{nome_segmento} - Porte da carteira")
+            _titulo_pagina_pdf(fig, f"{nome_segmento} - Relacionamento Mediatorie")
 
             ax = fig.add_axes([0.14, 0.57, 0.73, 0.245])
             _grafico_stack_competencia_pdf(
                 ax,
                 agrupado,
-                "Qt. Vidas Empresa",
-                f"{nome_segmento} por competência e Qt. Vidas Empresa",
+                "Descrição Relacionamento Mediatorie",
+                f"{nome_segmento} por competência e Relacionamento Mediatorie",
                 top_n=8,
             )
 
-            ranking = _preparar_ranking_porte(agrupado)
+            ranking = _preparar_ranking_relacionamento(agrupado)
             _tabela_dataframe_pdf(
                 fig,
                 ranking,
@@ -2323,10 +2342,11 @@ def gerar_pdf_dashboard(
             [
                 ["Empresa", "Somente Empresa = 1000."],
                 ["Movimentação", "Somente Tipo Movimentação = MOVIMENTAÇÃO."],
-                ["Cancelamento", "SEM JUSTA CAUSA, JUSTA CAUSA, A PEDIDO DO BENEFICIÁRIO (RN561), BENEFÍCIO DEMITIDO/APOSENTADO (RN279), DESLIGAMENTO DA EMPRESA (RN279), INADIMPLENTE ou campo vazio."],
+                ["Relacionamento Mediatorie", "A contagem considera uma vida por linha e agrupa pela coluna Descrição Relacionamento Mediatorie. ELISANGELA ARAUJO DOS SANTOS VASCONCELOS é tratada como CARTEIRA + 100 VIDAS."],
+                ["Cancelamento", "A PEDIDO DO BENEFICIÁRIO (RN561), BENEFÍCIO DEMITIDO/APOSENTADO (RN279), DESLIGAMENTO DA EMPRESA (RN 279), TRANSFERÊNCIA DE CONTRATO/LOTAÇÃO ou campo vazio."],
                 ["Validação de data", "Data Inclusão Vida - Data Início Beneficiário deve resultar em Diferença menor ou igual a zero."],
                 ["Competência", "Definida pela Data Inclusão Vida e considerada a partir de 01/2026."],
-                ["Saúde", "Id Acomodação diferente de ODO e SEM."],
+                ["Saúde", "Id Acomodação diferente de ODO."],
                 ["Odonto", "Id Acomodação igual a ODO."],
                 ["Grupo Econômico", "Registros sem Grupo Econômico informado não são apresentados na tabela."],
                 ["Visitas", "Os arquivos carregados são consolidados e o responsável é identificado pela coluna Responsável da própria planilha."],
@@ -2374,10 +2394,11 @@ with st.sidebar:
     st.markdown("### Regras")
     st.caption("Empresa = 1000")
     st.caption("Tipo Movimentação = MOVIMENTAÇÃO")
-    st.caption("Cancelamento homologado ou vazio")
+    st.caption("Contador: Descrição Relacionamento Mediatorie")
+    st.caption("Cancelamento: 4 motivos homologados ou vazio")
     st.caption("Diferenca ≤ 0")
     st.caption("Competência a partir de 01/2026")
-    st.caption("Saúde: diferente de ODO e SEM")
+    st.caption("Saúde: diferente de ODO")
     st.caption("Odonto: ODO")
 
 logo_bytes = obter_logo_bytes()
@@ -2466,9 +2487,9 @@ competencias_disponiveis = (
 
 )
 
-qt_disponiveis = sorted(
+relacionamentos_disponiveis = sorted(
 
-    valido["Qt. Vidas Empresa"]
+    valido["Descrição Relacionamento Mediatorie"]
 
     .dropna()
 
@@ -2494,19 +2515,19 @@ with st.sidebar:
 
     )
 
-    qt_vidas = st.multiselect(
+    relacionamentos = st.multiselect(
 
-        "Qt. Vidas Empresa",
+        "Descrição Relacionamento Mediatorie",
 
-        qt_disponiveis,
+        relacionamentos_disponiveis,
 
-        default=qt_disponiveis,
+        default=relacionamentos_disponiveis,
 
     )
 
-if not competencias or not qt_vidas:
+if not competencias or not relacionamentos:
 
-    st.warning("Selecione ao menos uma competência e um valor de Qt. Vidas Empresa.")
+    st.warning("Selecione ao menos uma competência e uma carteira de Relacionamento Mediatorie.")
 
     st.stop()
 
@@ -2514,7 +2535,7 @@ filtrado = valido[
 
     valido["Competencia"].isin(competencias)
 
-    & valido["Qt. Vidas Empresa"].isin(qt_vidas)
+    & valido["Descrição Relacionamento Mediatorie"].isin(relacionamentos)
 
 ].copy()
 
@@ -2526,9 +2547,9 @@ if filtrado.empty:
 
 saude, odonto = separar(filtrado)
 
-saude_agru = agrupar_carteira(saude)
+saude_agru = agrupar_relacionamento(saude)
 
-odonto_agru = agrupar_carteira(odonto)
+odonto_agru = agrupar_relacionamento(odonto)
 
 saude_grupo_eco = agrupar_grupo_economico(saude)
 
@@ -2614,11 +2635,11 @@ with geral:
 
         st.plotly_chart(
 
-            ranking_carteira(
+            ranking_relacionamento(
 
                 saude_agru,
 
-                "Saúde — maior volume por Qt. Vidas Empresa",
+                "Saúde — maior volume por Relacionamento Mediatorie",
 
             ),
 
@@ -2632,11 +2653,11 @@ with geral:
 
         st.plotly_chart(
 
-            ranking_carteira(
+            ranking_relacionamento(
 
                 odonto_agru,
 
-                "Odonto — maior volume por Qt. Vidas Empresa",
+                "Odonto — maior volume por Relacionamento Mediatorie",
 
             ),
 
@@ -2898,7 +2919,7 @@ with aba_metas:
 
     st.info(
 
-        "Ao filtrar Qt. Vidas Empresa, o Realizado considera apenas o recorte "
+        "Ao filtrar Relacionamento Mediatorie, o Realizado considera apenas o recorte "
 
         "selecionado. A Meta continua sendo a meta corporativa mensal."
 
@@ -2908,15 +2929,15 @@ with aba_saude:
 
     st.subheader("Saúde")
 
-    st.caption("Acomodação diferente de ODO e SEM.")
+    st.caption("Acomodação diferente de ODO.")
 
     st.plotly_chart(
 
-        grafico_carteira(
+        grafico_relacionamento(
 
             saude_agru,
 
-            "Saúde por competência e Qt. Vidas Empresa",
+            "Saúde por competência e Relacionamento Mediatorie",
 
         ),
 
@@ -2965,11 +2986,11 @@ with aba_odonto:
 
     st.plotly_chart(
 
-        grafico_carteira(
+        grafico_relacionamento(
 
             odonto_agru,
 
-            "Odonto por competência e Qt. Vidas Empresa",
+            "Odonto por competência e Relacionamento Mediatorie",
 
         ),
 
@@ -3294,7 +3315,7 @@ with conferencia:
 
                 "Descrição Beneficiário",
 
-                "Qt. Vidas Empresa",
+                "Descrição Relacionamento Mediatorie",
 
                 "Id Acomodação",
 
@@ -3344,7 +3365,7 @@ with st.sidebar:
                     valido=valido,
                     nao_corretos=nao_corretos,
                     competencias=competencias,
-                    qt_vidas=qt_vidas,
+                    relacionamentos=relacionamentos,
                     visitas_filtradas=visitas_filtradas,
                     logo_bytes=logo_bytes,
                     nome_base=arquivo.name,
